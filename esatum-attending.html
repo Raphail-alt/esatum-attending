@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>I Will Be Attending | ESATUM Annual Dinner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --gold:#e8b84b; --bg:#14100a; --card:#211a10; --text:#f5efe3; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:Montserrat, Arial, sans-serif; background:var(--bg); color:var(--text); }
+  header { text-align:center; padding:20px 16px 6px; }
+  header h1 { margin:0; font-size:20px; color:var(--gold); }
+  header p { margin:6px 0 0; font-size:13px; opacity:.8; }
+  main { max-width:980px; margin:0 auto; padding:12px 16px 40px; display:grid; gap:20px; grid-template-columns:1fr; }
+  @media (min-width:820px){ main { grid-template-columns:380px 1fr; align-items:start; } }
+  .panel { background:var(--card); border:1px solid #3a2f1c; border-radius:14px; padding:18px; }
+  label { display:block; font-size:13px; margin:14px 0 6px; color:var(--gold); font-weight:700; }
+  label:first-child { margin-top:0; }
+  input[type=text] { width:100%; padding:11px 12px; border-radius:8px; border:1px solid #4a3b22; background:#120d06; color:var(--text); font:inherit; }
+  input[type=range] { width:100%; accent-color:var(--gold); }
+  .file { display:block; text-align:center; padding:14px; border:2px dashed #6b5630; border-radius:10px; cursor:pointer; font-size:14px; }
+  .file:hover { border-color:var(--gold); }
+  .file input { display:none; }
+  button { width:100%; margin-top:18px; padding:14px; border:0; border-radius:10px; background:var(--gold); color:#1a1305; font:inherit; font-weight:800; font-size:15px; cursor:pointer; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .hint { font-size:12px; opacity:.7; margin-top:10px; line-height:1.5; }
+  .stage { display:flex; justify-content:center; }
+  canvas { width:100%; max-width:480px; height:auto; border-radius:10px; touch-action:none; cursor:grab; background:#000; }
+  canvas.dragging { cursor:grabbing; }
+</style>
+</head>
+<body>
+<header>
+  <h1>School of Engineering and Technology Annual Dinner</h1>
+  <p>Add your photo and name, then download your "I will be attending" poster.</p>
+</header>
+
+<main>
+  <section class="panel">
+    <label>1. Your photo</label>
+    <label class="file" for="photo">Tap to choose a photo
+      <input id="photo" type="file" accept="image/*">
+    </label>
+
+    <label for="zoom">Zoom</label>
+    <input id="zoom" type="range" min="1" max="3" step="0.01" value="1">
+    <div class="hint">Drag the photo on the poster to move it inside the circle.</div>
+
+    <label for="name">2. Your name</label>
+    <input id="name" type="text" maxlength="40" placeholder="Your Name Here">
+
+    <label for="title">3. Title or organization</label>
+    <input id="title" type="text" maxlength="60" placeholder="Your Title / Organization">
+
+    <button id="download" disabled>Download my poster</button>
+    <div class="hint">Your photo stays on your device. Nothing is uploaded anywhere. If the image opens in a new tab on your phone, press and hold it and choose Save image.</div>
+  </section>
+
+  <section class="stage">
+    <canvas id="c" width="1080" height="1500"></canvas>
+  </section>
+</main>
+
+<script>
+// ---------- Layout settings (fractions of poster size) ----------
+// Tweak these if the photo circle or text sits slightly off your design.
+const CFG = {
+  W: 1080, H: 1500,
+  cx: 0.50,      // photo circle center X
+  cy: 0.452,     // photo circle center Y
+  r: 0.225,      // photo circle radius (as fraction of width)
+  nameY: 0.745,  // name baseline Y
+  titleY: 0.778, // title baseline Y
+  nameSize: 66,
+  titleSize: 38,
+  maxTextWidth: 900,
+  bgFile: 'poster-bg.png'
+};
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const photoInput = document.getElementById('photo');
+const zoomEl = document.getElementById('zoom');
+const nameEl = document.getElementById('name');
+const titleEl = document.getElementById('title');
+const dlBtn = document.getElementById('download');
+
+let bg = null, bgOk = false;
+let photo = null;
+let offX = 0, offY = 0;
+
+function loadBg() {
+  const img = new Image();
+  img.onload = () => { bg = img; bgOk = true; draw(); };
+  img.onerror = () => { bgOk = false; draw(); };
+  img.src = CFG.bgFile;
+}
+
+function drawFallbackBg() {
+  const g = ctx.createLinearGradient(0, 0, 0, CFG.H);
+  g.addColorStop(0, '#2b1f0f'); g.addColorStop(1, '#0d0904');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, CFG.W, CFG.H);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#f2ece0'; ctx.font = '800 80px Montserrat, Arial';
+  ctx.fillText('SCHOOL OF ENGINEERING', CFG.W/2, 250);
+  ctx.fillText('AND TECHNOLOGY', CFG.W/2, 340);
+  ctx.fillStyle = '#e8b84b'; ctx.font = '700 52px Montserrat, Arial';
+  ctx.fillText('ANNUAL DINNER', CFG.W/2, 420);
+  ctx.font = '500 56px Montserrat, Arial';
+  ctx.fillText('I WILL BE ATTENDING', CFG.W/2, 500);
+  ctx.strokeStyle = '#6b5630'; ctx.lineWidth = 18;
+  ctx.beginPath(); ctx.arc(CFG.cx*CFG.W, CFG.cy*CFG.H, CFG.r*CFG.W + 20, 0, Math.PI*2); ctx.stroke();
+  ctx.fillStyle = '#e8b84b'; ctx.font = '700 36px Montserrat, Arial';
+  ctx.fillText('FRIDAY, 27TH NOVEMBER 2026  |  18:00 TO 22:00  |  SHERATON HOTEL', CFG.W/2, 1440);
+}
+
+function drawPhoto() {
+  const cx = CFG.cx * CFG.W, cy = CFG.cy * CFG.H, r = CFG.r * CFG.W;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.clip();
+  if (photo) {
+    const base = Math.max(2*r / photo.width, 2*r / photo.height);
+    const s = base * parseFloat(zoomEl.value);
+    const w = photo.width * s, h = photo.height * s;
+    // keep photo covering the circle
+    const maxX = Math.max(0, (w - 2*r) / 2), maxY = Math.max(0, (h - 2*r) / 2);
+    offX = Math.min(maxX, Math.max(-maxX, offX));
+    offY = Math.min(maxY, Math.max(-maxY, offY));
+    ctx.drawImage(photo, cx - w/2 + offX, cy - h/2 + offY, w, h);
+  } else {
+    ctx.fillStyle = '#2a2114'; ctx.fillRect(cx - r, cy - r, 2*r, 2*r);
+    ctx.fillStyle = '#8a7347'; ctx.textAlign = 'center';
+    ctx.font = '700 40px Montserrat, Arial';
+    ctx.fillText('Your photo here', cx, cy + 14);
+  }
+  ctx.restore();
+}
+
+function fitText(text, weight, size, maxW) {
+  let s = size;
+  ctx.font = `${weight} ${s}px Montserrat, Arial`;
+  while (ctx.measureText(text).width > maxW && s > 20) {
+    s -= 2; ctx.font = `${weight} ${s}px Montserrat, Arial`;
+  }
+}
+
+function drawTexts() {
+  const name = nameEl.value.trim() || 'Your Name Here';
+  const title = titleEl.value.trim() || 'Your Title / Organization';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(0,0,0,.7)'; ctx.shadowBlur = 10;
+
+  ctx.fillStyle = '#ffffff';
+  fitText(name, 800, CFG.nameSize, CFG.maxTextWidth);
+  ctx.fillText(name, CFG.W/2, CFG.nameY * CFG.H);
+
+  ctx.fillStyle = '#e8b84b';
+  fitText(title, 600, CFG.titleSize, CFG.maxTextWidth);
+  ctx.fillText(title, CFG.W/2, CFG.titleY * CFG.H);
+  ctx.shadowBlur = 0;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, CFG.W, CFG.H);
+  if (bgOk) ctx.drawImage(bg, 0, 0, CFG.W, CFG.H); else drawFallbackBg();
+  drawPhoto();
+  drawTexts();
+}
+
+// ---------- Events ----------
+photoInput.addEventListener('change', e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    photo = img; offX = 0; offY = 0; zoomEl.value = 1;
+    dlBtn.disabled = false; draw();
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+});
+zoomEl.addEventListener('input', draw);
+nameEl.addEventListener('input', draw);
+titleEl.addEventListener('input', draw);
+
+// drag to reposition photo
+let dragging = false, lastX = 0, lastY = 0;
+function toCanvas(e) {
+  const rect = canvas.getBoundingClientRect();
+  const k = CFG.W / rect.width;
+  return { x: (e.clientX - rect.left) * k, y: (e.clientY - rect.top) * k };
+}
+canvas.addEventListener('pointerdown', e => {
+  if (!photo) return;
+  dragging = true; const p = toCanvas(e); lastX = p.x; lastY = p.y;
+  canvas.setPointerCapture(e.pointerId); canvas.classList.add('dragging');
+});
+canvas.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  const p = toCanvas(e);
+  offX += p.x - lastX; offY += p.y - lastY; lastX = p.x; lastY = p.y;
+  draw();
+});
+['pointerup','pointercancel'].forEach(t => canvas.addEventListener(t, () => {
+  dragging = false; canvas.classList.remove('dragging');
+}));
+
+dlBtn.addEventListener('click', () => {
+  canvas.toBlob(blob => {
+    const a = document.createElement('a');
+    const nm = (nameEl.value.trim() || 'attendee').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    a.href = URL.createObjectURL(blob);
+    a.download = `i-will-be-attending-${nm}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }, 'image/png');
+});
+
+// start
+draw();
+loadBg();
+if (document.fonts && document.fonts.load) {
+  Promise.all([
+    document.fonts.load('800 60px Montserrat'),
+    document.fonts.load('600 40px Montserrat')
+  ]).then(draw).catch(() => {});
+}
+</script>
+</body>
+</html>
